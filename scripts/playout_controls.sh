@@ -36,6 +36,7 @@ NOW=`date +%Y-%m-%d.%H:%M:%S`
 # getvolume
 # getmaxvolume
 # setvolstep
+# setlastvolume
 # getvolstep
 # playerstop
 # playerstopafter
@@ -95,6 +96,24 @@ if [ ! -f $PATHDATA/../settings/Min_Volume_Limit ]; then
 fi
 # 2. then|or read value from file
 MINVOL=`cat $PATHDATA/../settings/Min_Volume_Limit`
+
+##############################################
+# Actual / Last set volume
+# 1. create a default if file does not exist
+if [ ! -f $PATHDATA/../settings/Last_Actual_Volume ]; then
+    echo "$MAXVOL" > $PATHDATA/../settings/Last_Actual_Volume
+fi
+# 2. then|or read value from file
+ACTUALVOL=`cat $PATHDATA/../settings/Last_Actual_Volume`
+
+#############################################
+# read volume in percent
+MOPIDYVOL=$(echo -e status\\nclose | nc -w 1 localhost 6600 | grep -o -P '(?<=volume: ).*')
+if [ $MOPIDYVOL -ne $ACTUALVOL ];
+then
+    #set volume level
+    echo -e setvol $ACTUALVOL\\nclose | nc -w 1 localhost 6600
+fi
 
 #################################
 # path to file storing the current volume level
@@ -216,6 +235,20 @@ case $COMMAND in
         then
             # set volume level in percent
             echo -e setvol $VALUE\\nclose | nc -w 1 localhost 6600
+            # write new value to file
+            echo "$VALUE" > $PATHDATA/../settings/Last_Actual_Volume
+        else
+            # if we are over the max volume limit, set the volume to maxvol
+            echo -e setvol $MAXVOL\\nclose | nc -w 1 localhost 6600
+            # write new value to file
+            echo "$MAXVOL" > $PATHDATA/../settings/Last_Actual_Volume
+        fi
+        ;;
+    setlastvolume)
+        if [ $ACTUALVOL -le $MAXVOL ];
+        then
+            # set volume level in percent
+            echo -e setvol $ACTUALVOL\\nclose | nc -w 1 localhost 6600
         else
             if [ $VALUE -gt $MAXVOL ];
             then
@@ -254,9 +287,11 @@ case $COMMAND in
             then
                 # set volume level in percent
                 echo -e setvol +$VOLPERCENT\\nclose | nc -w 1 localhost 6600
+                echo "$VALUE" > $PATHDATA/../settings/Last_Actual_Volume
             else
                 # if we are over the max volume limit, set the volume to maxvol
                 echo -e setvol $MAXVOL\\nclose | nc -w 1 localhost 6600
+                echo "$MAXVOL" > $PATHDATA/../settings/Last_Actual_Volume
             fi
         else
             # $VOLFILE DOES exist == audio off
@@ -291,9 +326,11 @@ case $COMMAND in
             then
                 # set volume level in percent
                 echo -e setvol +$VOLPERCENT\\nclose | nc -w 1 localhost 6600
+                echo "$VOLPERCENT" > $PATHDATA/../settings/Last_Actual_Volume
             else
                 # if we are below the min volume limit, set the volume to minvol
                 echo -e setvol $MINVOL\\nclose | nc -w 1 localhost 6600
+                echo "$MINVOL" > $PATHDATA/../settings/Last_Actual_Volume
             fi
         else
             # $VOLFILE DOES exist == audio off
